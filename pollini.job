@@ -1,0 +1,15 @@
+#!/bin/bash
+
+#SBATCH --ntasks=1
+#SBATCH --time=02-08:00:00
+#SBATCH --partition=net-disk
+#SBATCH --output=ope/pollini-%j.out
+#SBATCH --error=ope/pollini-%j.out
+
+if [ -z "$WORK" ]; then
+  echo "variabile WORK non assegnata, esco"
+  exit 1
+fi
+rm -rf $WORK/forecast
+cd $SLURM_SUBMITDIR
+./src/pollini.py --ope --basedir=$WORK/forecast/
