@@ -9,6 +9,7 @@ import ftplib
 import tempfile
 import csv,MySQLdb
 # sostituire MySQLdb con pymysql
+import ArpaeSecrets
 
 class MeteoFile:
     def __init__(self, name, rename):
@@ -65,8 +66,8 @@ class GetMeteo:
         try:
             file = open(filename, 'wb')
             csvwf = csv.writer(file)
-            db = MySQLdb.connect(host=secrets.pragahost, user=secrets.pragauser, \
-                                     passwd=secrets.pragapasswd, db=secrets.pragadb)
+            db = MySQLdb.connect(host=ArpaeSecrets.pragahost, user=ArpaeSecrets.pragauser, \
+                                     passwd=ArpaeSecrets.pragapasswd, db=ArpaeSecrets.pragadb)
 
             curs = db.cursor()
             table='q'+prov_to_gias[p]+'g'
@@ -105,9 +106,9 @@ class GetMeteo:
         savedir = os.getcwd()
         os.chdir(self.rdir)
         try:
-            ftp = ftplib.FTP(secrets.iftphost)
+            ftp = ftplib.FTP(ArpaeSecrets.iftphost)
             try:
-                ftp.login(secrets.iftpuser,secrets.iftppasswd)
+                ftp.login(ArpaeSecrets.iftpuser,ArpaeSecrets.iftppasswd)
                 ftp.cwd('ModelloPollini')
                 for file in self.fileset:
                     if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()):
@@ -150,7 +151,7 @@ class GetMeteo:
         for file in self.fileset:
             if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()):
                     try:
-                        srcfile = os.path.join(secrets.fspath, file.name)
+                        srcfile = os.path.join(ArpaeSecrets.fspath, file.name)
                         if os.access(srcfile, os.R_OK):
 #                        if os.is_file(srcfile):
                             for f in glob.glob('????.csv'): os.unlink(f)
@@ -287,7 +288,7 @@ class GetPollini:
 
         p1 = subprocess.Popen(['arki-query', '--data',
                                'Reftime:>='+ds.isoformat(' ')+',<='+de.isoformat(' ')+';product:VM2:tr=0,p1=0;',
-                               secrets.arkiossurl],
+                               ArpaeSecrets.arkiossurl],
                               stdout=subprocess.PIPE)
         p2 = subprocess.Popen(['meteo-vm2-to-bufr'], stdin=p1.stdout,
                               stdout=open(bufrname,'w'))
@@ -478,10 +479,10 @@ touch %s
     def __ftp_put__(self, filetmpl, p):
         errstatus = 0
         try:
-            ftp = ftplib.FTP('secrets.oftphost)
-            ftp.login(secrets.oftpuser,secrets.oftppasswd)
+            ftp = ftplib.FTP(ArpaeSecrets.oftphost)
+            ftp.login(ArpaeSecrets.oftpuser,ArpaeSecrets.oftppasswd)
         except:
-            print "Error in ftp connection to "+secrets.ftphost
+            print "Error in ftp connection to "+ArpaeSecrets.ftphost
             return 1
 
         for f in self.fam:
@@ -504,10 +505,10 @@ touch %s
     def __ftp_put_prov__(self, filename):
         errstatus = 0
         try:
-            ftp = ftplib.FTP('secrets.oftphost)
-            ftp.login(secrets.oftpuser,secrets.oftppasswd)
+            ftp = ftplib.FTP(ArpaeSecrets.oftphost)
+            ftp.login(ArpaeSecrets.oftpuser,ArpaeSecrets.oftppasswd)
         except:
-            print "Error in ftp connection to "+secrets.ftphost
+            print "Error in ftp connection to "+ArpaeSecrets.ftphost
             return 1
 
         if os.path.exists(filename):
