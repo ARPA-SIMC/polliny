@@ -1,17 +1,116 @@
 #!/usr/bin/python3
 
 import datetime
+from math import trunc
+#import re
 import sys, optparse
-#import ArpaeSecrets
+import ArpaeSecrets
+import csv
+
+import mysql.connector
 
 # prototipo di estrazione da pds a pde con scrittura in outfile
 def getpolldb(pds, pde, outfile):
-    outfile.write(str(pds)+" "+str(pde)+"\n")
+
+    pds1 = pds- datetime.timedelta(days=1)
+    pde1 = pde- datetime.timedelta(days=1)
+
+    stazs = readStazs()
+    vars = readVars()
+
+    sql = "select station_id,reftime,\n"
+    for i in range(len(vars)):
+        sql+=f"max(CASE WHEN variable_id='{vars[i]}' THEN value END) as '{vars[i]}',\n"
+
+    sql = sql.rstrip(sql[-1])
+    sql = sql.rstrip(sql[-1])
+    sql +="\n"
+    
+    sql+="from poldat\n"
+    sql+=f"WHERE variable_id<'B48100' AND station_id>1 AND reftime BETWEEN '{pds1}' AND '{pde1}'\n"
+    sql+="group by station_id,reftime\n"
+    sql+="order by station_id,reftime"
+
+    #print(sql)
+
+    cnx = getCnx()
+    cursor = cnx.cursor()
+    cursor.execute(sql)
+
+    records = cursor.fetchall()
+    
+    cursor.close()
+    cnx.close()
+    
+    for r in records:
+        id=str(r[0])
+        dt = str(r[1]+datetime.timedelta(days=1)).replace(' 00:00:00','T00:00:00Z')
+        nome = stazs[id]["nome"]
+        lat = stazs[id]["archiLat"]
+        lon = stazs[id]["archiLon"]
+        alt = stazs[id]["alt"]
+        
+
+        json = '{"ident": null, "network": "pollini", "version": "0.1", '
+        json += f'"date":"{dt}",'
+
+        json += f'" lat":{lat}, "lon":{lon}, "data": [{{"timerange": [0, 0, 86400], "vars": {{'
+        
+        for j in range(len(vars)):
+            if(j>0):
+                json += ', '
+            if(r[j+2]!= None):
+                json += '"' +vars[j] + '":{"v":' + str(trunc(r[j+2])) + '}'  
+            else:
+                json += '"' +vars[j] + '":{"v":null}'  
+
+        json += '}, "level": [103, 15000, null, null]}, {"vars": {"B01019": {"v": "' + nome + '"}, "B05001": {"v": ' + str(int(lat)/ 100000) + '}, "B06001": {"v":' + str(int(lon)/ 100000) + '}, '
+        json += '"B07030": {"v":' + alt + '}, "B01194": {"v": "pollini"}}}]}\n'
+
+        outfile.write(json)
+    
+    #outfile.write(str(pds)+" "+str(pde)+"\n")
+
+def readStazs():
+    """Legge il file delle stazioni e ritorna un JSON che ha come chiave il codice stazione"""
+    stazs = {}
+
+    with open('confStaz.csv', newline='') as csvfile:
+        spamreader = csv.reader(csvfile)
+        for row in spamreader:
+            stazId = str(row[0])
+            stazs[stazId] = {'nome': row[1], 'archiLat': row[2], 'archiLon': row[3], 'alt':row[4]}
+        
+    return stazs
+
+def readVars():
+    """Legge il file delle variabili e ritorna un array con il codice di ciascuna di esse"""
+    vars = []
+
+    with open('confVars.csv', newline='') as csvfile:
+        spamreader = csv.reader(csvfile)
+        for row in spamreader:
+            vars = row
+
+    return vars
+
+
+def getCnx():
+    """Ritorna una connessione al DB costruita sulle credenziali contenute in ArpaeSecrets nell'oggetto DBpollini"""
+    try:
+        cnx = mysql.connector.connect(**ArpaeSecrets.DBpollini)
+    except mysql.connector.Error as err:
+        if err.errno == mysql.connector.errorcode.ER_ACCESS_DENIED_ERROR:
+            print("Something is wrong with your user name or password")
+        elif err.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+            print("Database does not exist")
+        else:
+            print(err)
+    return cnx
 
 
 if __name__ == '__main__':
-
-# command line arguments handling
+    # command line arguments handling
     clopt = optparse.OptionParser()
 
     clopt.add_option("-s", "--startdate", metavar="AAAA-MM-GG",
@@ -23,11 +122,13 @@ if __name__ == '__main__':
     (options, args) = clopt.parse_args()
 
     if options.enddate is not None:
-        de = datetime.datetime(*time.strptime(options.enddate, "%Y-%m-%d")[0:3])
+        #de = datetime.datetime(*time.strptime(options.enddate, "%Y-%m-%d")[0:3])
+        de = datetime.datetime.strptime(options.enddate, "%Y-%m-%d")
     else:
         de = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     if options.startdate is not None:
-        ds = datetime.datetime(*time.strptime(options.startdate, "%Y-%m-%d")[0:3])
+        #ds = datetime.datetime(*time.strptime(options.startdate, "%Y-%m-%d")[0:3])
+        ds = datetime.datetime.strptime(options.startdate, "%Y-%m-%d")
     else:
         ds = de - datetime.timedelta(days=7)
     if options.outfile is not None:
