@@ -2,7 +2,6 @@
 
 import datetime
 from math import trunc
-#import re
 import sys, optparse
 import ArpaeSecrets
 import csv
@@ -70,7 +69,6 @@ def getpolldb(pds, pde, outfile):
 
         outfile.write(json)
     
-    #outfile.write(str(pds)+" "+str(pde)+"\n")
 
 def readStazs():
     """Legge il file delle stazioni e ritorna un JSON che ha come chiave il codice stazione"""
@@ -123,13 +121,11 @@ if __name__ == '__main__':
     (options, args) = clopt.parse_args()
 
     if options.enddate is not None:
-        #de = datetime.datetime(*time.strptime(options.enddate, "%Y-%m-%d")[0:3])
-        de = datetime.datetime.strptime(options.enddate, "%Y-%m-%d")
+        de = datetime.datetime.strptime(options.enddate[:10], "%Y-%m-%d")
     else:
         de = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     if options.startdate is not None:
-        #ds = datetime.datetime(*time.strptime(options.startdate, "%Y-%m-%d")[0:3])
-        ds = datetime.datetime.strptime(options.startdate, "%Y-%m-%d")
+        ds = datetime.datetime.strptime(options.startdate[:10], "%Y-%m-%d")
     else:
         ds = de - datetime.timedelta(days=7)
     if options.outfile is not None:
