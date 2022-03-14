@@ -7,7 +7,8 @@ import sys, optparse
 import ArpaeSecrets
 import csv
 
-import mysql.connector
+#import mysql.connector as MySQLdb
+import MySQLdb
 
 # prototipo di estrazione da pds a pde con scrittura in outfile
 def getpolldb(pds, pde, outfile):
@@ -54,7 +55,7 @@ def getpolldb(pds, pde, outfile):
         json = '{"ident": null, "network": "pollini", "version": "0.1", '
         json += f'"date":"{dt}",'
 
-        json += f'" lat":{lat}, "lon":{lon}, "data": [{{"timerange": [0, 0, 86400], "vars": {{'
+        json += f'"lat":{lat}, "lon":{lon}, "data": [{{"timerange": [0, 0, 86400], "vars": {{'
         
         for j in range(len(vars)):
             if(j>0):
@@ -98,11 +99,11 @@ def readVars():
 def getCnx():
     """Ritorna una connessione al DB costruita sulle credenziali contenute in ArpaeSecrets nell'oggetto DBpollini"""
     try:
-        cnx = mysql.connector.connect(**ArpaeSecrets.DBpollini)
-    except mysql.connector.Error as err:
-        if err.errno == mysql.connector.errorcode.ER_ACCESS_DENIED_ERROR:
+        cnx = MySQLdb.connect(**ArpaeSecrets.DBpollini)
+    except MySQLdb.Error as err:
+        if err.errno == MySQLdb.errorcode.ER_ACCESS_DENIED_ERROR:
             print("Something is wrong with your user name or password")
-        elif err.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+        elif err.errno == MySQLdb.errorcode.ER_BAD_DB_ERROR:
             print("Database does not exist")
         else:
             print(err)
