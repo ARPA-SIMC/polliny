@@ -4,6 +4,7 @@ import datetime
 from math import trunc
 import sys, optparse
 import ArpaeSecrets
+from pollconst import *
 import csv
 
 #import mysql.connector as MySQLdb
@@ -15,8 +16,8 @@ def getpolldb(pds, pde, outfile):
     pds1 = pds- datetime.timedelta(days=1)
     pde1 = pde- datetime.timedelta(days=1)
 
-    stazs = readStazs()
-    vars = readVars()
+#    stazs = readStazs()
+#    vars = readVars()
 
     sql = "select station_id,reftime,\n"
     for i in range(len(vars)):
