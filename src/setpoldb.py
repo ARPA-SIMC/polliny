@@ -6,7 +6,10 @@ import sys
 import json
 import csv
 from textwrap import indent
-import mysql.connector
+try:
+    import MySQLdb
+except:
+    import mysql.connector as MySQLdb
 
 
 def readStazsArkimet():
@@ -42,17 +45,20 @@ def setpolldb(filename):
         sql = "INSERT INTO `polprev` (`station_id`,`variable_id`,`reftime`,`value`)\n"
         sql += "VALUES\n"
 
+        hasdata = False
         for d in x["data"]:
             if "timerange" in d:
                 for v in d['vars']:
                     sql+="(" + idStaz + ",'" + v + "','" + dt + "'," + str(d['vars'][v]['v']) + "),\n"
+                    hasdata = True
         
         sql = sql[:-2]
         sql += "\nON DUPLICATE KEY\n"
         sql += "UPDATE modified=IF(isnull(modified),IF(value<>values(value),1,null),IF(value<>values(value),modified+1,modified)),value=values(value)\n"
         
-        print(sql)
-        cursor.execute(sql)
+        if hasdata:
+            print(sql)
+            cursor.execute(sql)
         line = f.readline()
     cnx.commit()
 
@@ -64,11 +70,11 @@ def setpolldb(filename):
 def getCnx():
     """Ritorna una connessione al DB costruita sulle credenziali contenute in ArpaeSecrets nell'oggetto DBpollini"""
     try:
-        cnx = mysql.connector.connect(**ArpaeSecrets.DBpollini)
-    except mysql.connector.Error as err:
-        if err.errno == mysql.connector.errorcode.ER_ACCESS_DENIED_ERROR:
+        cnx = MySQLdb.connect(**ArpaeSecrets.DBpollini)
+    except MySQLdb.Error as err:
+        if err.errno == MySQLdb.errorcode.ER_ACCESS_DENIED_ERROR:
             print("Something is wrong with your user name or password")
-        elif err.errno == mysql.connector.errorcode.ER_BAD_DB_ERROR:
+        elif err.errno == MySQLdb.errorcode.ER_BAD_DB_ERROR:
             print("Database does not exist")
         else:
             print(err)
