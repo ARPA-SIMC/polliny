@@ -10,6 +10,7 @@ import tempfile
 import csv,MySQLdb
 # sostituire MySQLdb con pymysql
 import ArpaeSecrets
+import praga
 
 class MeteoFile:
     def __init__(self, name, rename):
@@ -34,7 +35,8 @@ class GetMeteo:
         self.fileset[0].status = {}
         self.prov = prov
         # data d'inizio delle serie storiche
-        self.histds = datetime.datetime(1991, 1, 1)
+#        self.histds = datetime.datetime(1991, 1, 1)
+        self.histds = datetime.datetime(2001, 1, 1)
         for p in prov: self.status0[p] = ST_NOOBS
         for p in prov: self.status1[p] = ST_NOOBS
         for p in prov: self.fileset[0].status[p] = ST_NOOBS
@@ -42,7 +44,8 @@ class GetMeteo:
     def retrievehistdata(self):
         for p in self.prov:
             if self.status0[p] == ST_NOOBS:
-                if self.__db_get__(self.histds, self.ds-datetime.timedelta(days=1), p,
+# tolta la sottrazione di 1 giorno a ds
+                if self.__db_get__(self.histds, self.ds, p,
                                      os.path.join(self.wdir,p+'_meteo0.csv')) == 0:
                     self.status0[p] = ST_OKOBS
 
@@ -50,7 +53,8 @@ class GetMeteo:
     def retrievelastdata(self):
         for p in self.prov:
             if self.status1[p] == ST_NOOBS:
-                if self.__db_get__(self.ds, self.de, p,
+# aggiunto 1 giorno a de
+                if self.__db_get__(self.ds, self.de+datetime.timedelta(days=1), p,
                                      os.path.join(self.wdir,p+'_meteo1.csv')) == 0:
                     self.status1[p] = ST_OKOBS
 
@@ -63,37 +67,16 @@ class GetMeteo:
 
 
     def __db_get__(self, ds, de, p, filename):
+        err = 0
+        tabled = prov_to_gias[p]+'_d'
+        tableh = prov_to_gias[p]+'_h'
         try:
-            file = open(filename, 'wb')
-            csvwf = csv.writer(file)
-            db = MySQLdb.connect(host=ArpaeSecrets.pragahost, user=ArpaeSecrets.pragauser, \
-                                     passwd=ArpaeSecrets.pragapasswd, db=ArpaeSecrets.pragadb)
-
-            curs = db.cursor()
-            table='q'+prov_to_gias[p]+'g'
-            csvwf.writerow(mysqlGetColList(curs, table))
-#            curs.execute('SELECT * from '+table+ \
-#                             ' where tempo >= %s and tempo <= %s order by tempo', (ds,de))
-            curs.execute('SELECT TEMPO, ET_H_SMR, VENTO_SMR, VD_SMR, VMAX_SMR, TEMP_MIN_SMR, TEMP_MEDIA_SMR, TEMP_MAX_SMR, UMIN_SMR, UMAX_SMR, U_R_SMR, PREC_SMR, RAD_SMR from '+table+ \
-                             ' where tempo >= %s and tempo <= %s order by tempo', (ds,de))
-            while True:
-                line = curs.fetchone()
-                if line is None: break
-#                csvwf.writerow((line[0].strftime('%d/%m/%Y'),)+line[1:])
-                csvwf.writerow((line[0].strftime('%Y-%m-%d'),)+line[1:])
-            err = 0
-            file.close()
+            praga.pragaquery(tabled, tableh, ds, de, filename)
         except MySQLdb.Error:
             raise
             err = 1
-            file.close()
             try: os.unlink(filename)
             except: pass
-        try:
-            curs.close()
-            db.close()
-        except MySQLdb.Error:
-            pass
         return err
 
 
@@ -130,13 +113,13 @@ class GetMeteo:
                                         os.unlink(f)
                                         file.status[p] = ST_OKOBS
                         except:
-                            print "problema durante trasferimento ftp, continuo"
+                            print("problema durante trasferimento ftp, continuo")
 #                        finally:
             except:
-                print "problema durante ftp, continuo"
+                print("problema durante ftp, continuo")
                 ftp.quit()
         except:
-            print "problema sul server ftp, continuo"
+            print("problema sul server ftp, continuo")
         os.chdir(savedir)
 
 
@@ -164,7 +147,7 @@ class GetMeteo:
                                         os.unlink(f)
                                         file.status[p] = ST_OKOBS
                     except:
-                        print "problema durante ricerca file, continuo"
+                        print("problema durante ricerca file, continuo")
         os.chdir(savedir)
 
 
@@ -286,12 +269,13 @@ class GetPollini:
         except: pass
         print("query+naml: ",ds.isoformat(" "),"-",de.isoformat(" "))
 
-        p1 = subprocess.Popen(['arki-query', '--data',
-                               'Reftime:>='+ds.isoformat(' ')+',<='+de.isoformat(' ')+';product:VM2:tr=0,p1=0;',
-                               ArpaeSecrets.arkiossurl],
+        p1 = subprocess.Popen(['getpoldb.py',
+                               '--startdate', ds.isoformat(' '),
+                               '--enddate', de.isoformat(' ')],
                               stdout=subprocess.PIPE)
-        p2 = subprocess.Popen(['meteo-vm2-to-bufr'], stdin=p1.stdout,
-                              stdout=open(bufrname,'w'))
+        p2 = subprocess.Popen(['dbamsg', 'convert',
+                               '-t', 'json', '-d', 'bufr'],
+                              stdin=p1.stdout, stdout=open(bufrname,'w'))
         p1.stdout.close()
         p2.communicate()
         try:
@@ -300,6 +284,23 @@ class GetPollini:
             if l <= 0: return
         except:
             return
+        
+
+
+        # p1 = subprocess.Popen(['arki-query', '--data',
+        #                        'Reftime:>='+ds.isoformat(' ')+',<='+de.isoformat(' ')+';product:VM2:tr=0,p1=0;',
+        #                        ArpaeSecrets.arkiossurl],
+        #                       stdout=subprocess.PIPE)
+        # p2 = subprocess.Popen(['meteo-vm2-to-bufr'], stdin=p1.stdout,
+        #                       stdout=open(bufrname,'w'))
+        # p1.stdout.close()
+        # p2.communicate()
+        # try:
+        #     l = os.stat(bufrname).st_size
+        #     print("length of bufr file",l)
+        #     if l <= 0: return
+        # except:
+        #     return
 
         
 # Create the namelist
@@ -382,7 +383,7 @@ class GetPollini:
         try:
             fd = open(self.reportname,"r")
         except:
-            print "problema con il file",self.reportname
+            print("problema con il file",self.reportname)
             return
         for line in fd.readlines():
             w = line.split()
@@ -442,7 +443,7 @@ touch %s
                     j.write(job)
                     j.close()
                     subprocess.call(["sbatch",jobname])
-                print "Partita la previsione per la provincia",p
+                print("Partita la previsione per la provincia",p)
 
 
     def check_forecast(self, meteo, no_transfer=False):
@@ -452,23 +453,20 @@ touch %s
                     if not os.path.exists("pollini_%s_%s.end" % (f.upper(), p)):
                         break
                 else: # all endfiles present
-                    print "Terminata la previsione per la provincia",p
+                    print("Terminata la previsione per la provincia",p)
                     meteo.setstatus(p, ST_ENDFC)
 
             if meteo.getstatus(p) == ST_ENDFC:
                 provprev = self.__tab_conv__("tabella_%s_%s.POL", p)
-                print "Creata la previsione BUFR per la provincia",p,"file",provprev
+                print("Creata la previsione JSON per la provincia",p,"file",provprev)
                 if no_transfer:
                     meteo.setstatus(p, ST_TRANS)
                 else:
-                    print "Trasferisco la previsione per la provincia",p
-#                    if self.__ftp_put__("tabella_%s_%s.POL", p) == 0:
-#                        print "Trasferita la previsione per la provincia",p
-#                        meteo.setstatus(p, ST_TRANS)
+                    print( "Trasferisco la previsione per la provincia",p)
                     if os.path.exists(provprev):
-                        if self.__ftp_put_prov__(provprev) == 0:
-                            print "Trasferita la previsione per la provincia",p
-                            meteo.setstatus(p, ST_TRANS)
+                        res = subprocess.call(['setpoldb.py', provprev])
+                        print("Trasferita la previsione per la provincia",p)
+                        meteo.setstatus(p, ST_TRANS)
 
         try:
             return all(meteo.getstatus(p) >= ST_TRANS for p in self.prov)
@@ -482,22 +480,22 @@ touch %s
             ftp = ftplib.FTP(ArpaeSecrets.oftphost)
             ftp.login(ArpaeSecrets.oftpuser,ArpaeSecrets.oftppasswd)
         except:
-            print "Error in ftp connection to "+ArpaeSecrets.ftphost
+            print("Error in ftp connection to",ArpaeSecrets.ftphost)
             return 1
 
         for f in self.fam:
             name = filetmpl % (f.upper(), p)
             if os.path.exists(name):
-                print "Tento di trasferire",name
+                print( "Tento di trasferire",name)
                 try:
                     ftp.storbinary('STOR '+name, open(name, "rb"))
                 except:
-                    print "Error in transferring ",name
+                    print("Error in transferring",name)
                     errstatus = 1
         try:
             ftp.quit()
         except:
-            print "Error in ftp closing"
+            print("Error in ftp closing")
             errstatus = 1
         return errstatus
 
@@ -508,28 +506,27 @@ touch %s
             ftp = ftplib.FTP(ArpaeSecrets.oftphost)
             ftp.login(ArpaeSecrets.oftpuser,ArpaeSecrets.oftppasswd)
         except:
-            print "Error in ftp connection to "+ArpaeSecrets.ftphost
+            print("Error in ftp connection to",ArpaeSecrets.ftphost)
             return 1
 
         if os.path.exists(filename):
-            print "Tento di trasferire",filename
+            print("Tento di trasferire",filename)
             try:
                 ftp.storbinary('STOR '+filename, open(filename, "rb"))
             except:
-                print "Error in transferring ",filename
+                print("Error in transferring ",filename)
                 errstatus = 1
         try:
             ftp.quit()
         except:
-            print "Error in ftp closing"
+            print("Error in ftp closing")
             errstatus = 1
         return errstatus
 
 
     def __tab_conv__(self, filetmpl, p):
-        outfile = "pollini_prev_%s_%s.bufr" % (p,self.ds.strftime("%Y%m%d%H%M"))
+        outfile = "pollini_prev_%s_%s.json" % (p,self.ds.strftime("%Y%m%d%H%M"))
         ana = "%f,%f,pollini" % (float(prov_to_lon[p])/1.E5,float(prov_to_lat[p])/1.E5)
-#        ofd = open("pollini_prev_%s.bufr" % (p,),"w")
         dbcsv = []
 
         for f in self.fam:
@@ -541,7 +538,7 @@ touch %s
                 for row in csv.reader(open(name), delimiter=","):
                     dbcsv.append("%s,%s,103,15000,,,0,%s,86400,%s,%s\n" %
                                  (ana,row[0],row[3],row[2],row[4]))
-        p1 = subprocess.Popen(["dbamsg","convert","-t","csv","-d","bufr"],
+        p1 = subprocess.Popen(["dbamsg","convert","-t","csv","-d","json"],
                               stdin=subprocess.PIPE,
                               stdout=open(outfile,'w'))
 
@@ -550,14 +547,17 @@ touch %s
     
 
 def mysqlGetColList(curs, table):
-    collist = ['TEMPO', 'ET_H_SMR', 'VENTO_SMR', 'VD_SMR', 'VMAX_SMR', 'TEMP_MIN_SMR', 'TEMP_MEDIA_SMR', 'TEMP_MAX_SMR', 'UMIN_SMR', 'UMAX_SMR', 'U_R_SMR', 'PREC_SMR', 'RAD_SMR']
-    # collist = []
+#    collist = ['TEMPO', 'ET_H_SMR', 'VENTO_SMR', 'VD_SMR', 'VMAX_SMR', 'TEMP_MIN_SMR', 'TEMP_MEDIA_SMR', 'TEMP_MAX_SMR', 'UMIN_SMR', 'UMAX_SMR', 'U_R_SMR', 'PREC_SMR', 'RAD_SMR']
+    collist = ['TEMPO', 'UMAX_SMR', 'UMIN_SMR', 'RAD_SMR', 'VMAX_SMR', 'VENTO_SMR', 'TEMP_MIN_SMR', 'TEMP_MAX_SMR', 'TEMP_MEDIA_SMR', 'PREC_SMR', 'U_R_SMR']    # collist = []
     # curs.execute('DESCRIBE '+table)
     # while True:
     #     line = curs.fetchone()
     #     if line is None: break
     #     collist.append(line[0].upper())
     return collist
+
+
+
 
 
 # ====================
@@ -583,7 +583,7 @@ clopt.add_option("-r", "--retrievedir", metavar="DIR", default='retrieve',
 clopt.add_option("-w", "--workdir", metavar="DIR", default='work',
                  help="sottodirectory di lavoro, in cui vengono creati i file di ingresso e viene lanciata la procedura di previsione, default %default")
 clopt.add_option("", "--rscript", metavar="PATH",
-                 default='src/test_operativo_bufr.R',
+                 default='~/R/script/pollini/test_operativo_bufr.R',
                  help="nome della script R da richiamare per effettuare la procedura di previsione, default %default")
 
 clopt.add_option("-s", "--startdate", metavar="AAAA-MM-GG",
@@ -735,7 +735,7 @@ else:
     # go back 6 days, not 7 because retrieve includes extremes
     ds = de - datetime.timedelta(hours=144)
 
-print "Periodo osservazioni:",ds.isoformat(" "),"-",de.isoformat(" ")
+print("Periodo osservazioni:",ds.isoformat(" "),"-",de.isoformat(" "))
 #sys.exit(0)
 if options.ope or options.get_meteo:
     meteo = GetMeteo(prov, ds, de, adir, rdir, wdir)
@@ -747,29 +747,29 @@ if options.ope:
 os.chdir(wdir)
 
 if not options.ope:
-    print "Modalità non operativa"
+    print("Modalità non operativa")
     if options.get_meteo:
-        print "Scarico i dati storici meteo"
+        print("Scarico i dati storici meteo")
         meteo.retrievehistdata()
         if not options.hist:
-            print "Scarico i dati meteo"
+            print("Scarico i dati meteo")
             meteo.retrievedata()
     if options.get_pollini:
-        print "Scarico i dati storici pollini"
+        print("Scarico i dati storici pollini")
         pollini.retrievehistdata(prov_string, lon_string, lat_string, provfile_string)
         if not options.hist:
-            print "Scarico i dati pollini"
+            print("Scarico i dati pollini")
             pollini.retrievedata(prov_string, lon_string, lat_string, provfile_string)
 #    if options.create_template:
 #        print "Creo i template"
 #        pollini.create_template()
 else:
-    print "Modalità operativa"
-    print "Lavorerò fino a ",max_time.isoformat(" ")
+    print("Modalità operativa")
+    print("Lavorerò fino a",max_time.isoformat(" "))
 #    pollini.create_template()
-    print "Scarico i dati storici meteo"
+    print("Scarico i dati storici meteo")
     meteo.retrievehistdata()
-    print "Scarico i dati storici pollini"
+    print("Scarico i dati storici pollini")
     pollini.retrievehistdata(prov_string, lon_string, lat_string, provfile_string)
     while(True):
 # get/refresh data
@@ -782,9 +782,9 @@ else:
         time.sleep(600)
 # check if any run has finished
         if run.check_forecast(meteo, options.no_transfer):
-            print "Tutto completato"
+            print("Tutto completato")
             break
 # exit when too late
         if datetime.datetime.now() > max_time:
-            print "Tempo scaduto, non tutto completato"
+            print("Tempo scaduto, non tutto completato")
             break
