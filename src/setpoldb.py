@@ -10,6 +10,7 @@ try:
     import MySQLdb
 except:
     import mysql.connector as MySQLdb
+from anag import *
 
 
 def readStazsArkimet():
@@ -25,7 +26,6 @@ def readStazsArkimet():
     return stazs
 
 def setpolldb(filename):
-    stazs = readStazsArkimet()
     print(f"sto importando {filename}")
     cnx = getCnx()
     cursor = cnx.cursor()
@@ -35,12 +35,9 @@ def setpolldb(filename):
     while line:
         
         x=json.loads(line)
-        k = str(x["lat"]) + "_" + str(x["lon"])
-        idStaz = stazs[k]['id']
+        idStaz = coord_to_key(str(x["lon"]), str(x["lat"]), 'idstaz')
 
         dt = x["date"].replace("T"," ").replace("Z","")
-        
-        #print(idStaz+" "+dt)
 
         sql = "INSERT INTO `polprev` (`station_id`,`variable_id`,`reftime`,`value`)\n"
         sql += "VALUES\n"
@@ -85,7 +82,5 @@ if __name__ == '__main__':
 
     if (len(sys.argv) != 2):
         print("Indicare il nome del file da caricare in mySQL")
-
-
 
     setpolldb(sys.argv[1])

@@ -10,6 +10,7 @@ import tempfile
 import csv,MySQLdb
 # sostituire MySQLdb con pymysql
 import ArpaeSecrets
+import anag
 import praga
 
 class MeteoFile:
@@ -68,8 +69,8 @@ class GetMeteo:
 
     def __db_get__(self, ds, de, p, filename):
         err = 0
-        tabled = prov_to_gias[p]+'_d'
-        tableh = prov_to_gias[p]+'_h'
+        tabled = anag.statid_to_key(p, 'gias')+'_d' # prov_to_gias[p]
+        tableh = anag.statid_to_key(p, 'gias')+'_h'
         try:
             praga.pragaquery(tabled, tableh, ds, de, filename)
         except MySQLdb.Error:
@@ -526,7 +527,7 @@ touch %s
 
     def __tab_conv__(self, filetmpl, p):
         outfile = "pollini_prev_%s_%s.json" % (p,self.ds.strftime("%Y%m%d%H%M"))
-        ana = "%f,%f,pollini" % (float(prov_to_lon[p])/1.E5,float(prov_to_lat[p])/1.E5)
+        ana = "%f,%f,pollini" % (float(anag.statid_to_key(p, 'intlon'))/1.E5,float(anag.statid_to_key(p, 'intlat'))/1.E5)
         dbcsv = []
 
         for f in self.fam:
@@ -619,7 +620,7 @@ max_time = datetime.datetime.now() + datetime.timedelta(hours=int(options.work_t
 
 # definizione delle stazioni osservative pollini
 # tabella conversione id Oracle/sigla provincia
-prov_to_ora = {
+obsoprov_to_ora = {
     'PC1':'4176', #00369 Piacenza
     'PR2':'4177', #00774 Parma
     'RE1':'4178', #00977 Reggio Emilia
@@ -635,7 +636,7 @@ prov_to_ora = {
     'BO3':'4189', #01338 San Giovanni Persiceto
     'BO5':'4190'  #01617 San Pietro Capofiume
     }
-prov_to_gias = {
+obsoprov_to_gias = {
     '4176':'00369', # Piacenza
     '4177':'00774', # Parma
     '4178':'00977', # Reggio Emilia
@@ -652,7 +653,7 @@ prov_to_gias = {
     '4190':'01617'  # San Pietro Capofiume
     }
 
-prov_to_lon = {
+obsoprov_to_lon = {
     '4176':'970554', # Piacenza
     '4177':'1031667', # Parma
     '4178':'1059917', # Reggio Emilia
@@ -669,7 +670,7 @@ prov_to_lon = {
     '4190':'1161667'  # San Pietro Capofiume
     }
 
-prov_to_lat = {
+obsoprov_to_lat = {
     '4176':'4506052', # Piacenza
     '4177':'4478333', # Parma
     '4178':'4465546', # Reggio Emilia
@@ -689,11 +690,11 @@ prov_to_lat = {
 # sottoelenco ragionevole operativo ==> cambiare questo
 prov_sigla = ('BO1', 'BO3', 'BO5', 'FE1', 'FO1', 'FO2', 'FO3', 'MO1', 'PC1', 'PR2', 'RA2', 'RA3', 'RE1')
 #prov_sigla = ('RE1',)
-prov = tuple("%s" % prov_to_ora[sigla] for sigla in prov_sigla)
+prov = tuple("%s" % anag.prov_to_key(sigla, 'idstaz') for sigla in prov_sigla)
 # righe per namelist
 prov_string = "%s,"*len(prov) % prov
-lon_string = "'%s',"*len(prov) % tuple("%s" % prov_to_lon[cod] for cod in prov)
-lat_string = "'%s',"*len(prov) % tuple("%s" % prov_to_lat[cod] for cod in prov)
+lon_string = "'%s',"*len(prov) % tuple("%s" % anag.statid_to_key(cod, 'intlon') for cod in prov)
+lat_string = "'%s',"*len(prov) % tuple("%s" % anag.statid_to_key(cod, 'intlat') for cod in prov)
 provfile_string = "'%s_pollini1.csv',"*len(prov) % prov
 # definire una classe "anagrafica" per gestire tutto cio`
 
@@ -726,7 +727,6 @@ else: # operational date
     # find datetime of previous Sunday 00 UTC
     # remember the 1 day shift in the database!
     de = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    # de = de - datetime.timedelta(hours=de.weekday()*24+1)
     de = de - datetime.timedelta(hours=(de.weekday()+1)*24)
 
 if options.startdate is not None and option.opdate is None:
@@ -736,7 +736,6 @@ else:
     ds = de - datetime.timedelta(hours=144)
 
 print("Periodo osservazioni:",ds.isoformat(" "),"-",de.isoformat(" "))
-#sys.exit(0)
 if options.ope or options.get_meteo:
     meteo = GetMeteo(prov, ds, de, adir, rdir, wdir)
 if options.ope or options.get_pollini:

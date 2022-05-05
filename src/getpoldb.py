@@ -4,7 +4,7 @@ import datetime
 from math import trunc
 import sys, optparse
 import ArpaeSecrets
-from pollconst import *
+from anag import *
 import csv
 
 #import mysql.connector as MySQLdb
@@ -46,10 +46,10 @@ def getpolldb(pds, pde, outfile):
     for r in records:
         id=str(r[0])
         dt = str(r[1]+datetime.timedelta(days=1)).replace(' 00:00:00','T00:00:00Z')
-        nome = stazs[id]["nome"]
-        lat = stazs[id]["archiLat"]
-        lon = stazs[id]["archiLon"]
-        alt = stazs[id]["alt"]
+        nome = statid_to_key(id, "nome")
+        lat = statid_to_key(id, "intlat")
+        lon = statid_to_key(id, "intlon")
+        alt = statid_to_key(id, "alt")
         
 
         json = '{"ident": null, "network": "pollini", "version": "0.1", '
