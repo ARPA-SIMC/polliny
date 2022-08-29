@@ -63,7 +63,7 @@ class GetMeteo:
     def retrievedata(self):
         self.retrievelastdata()
         if any(self.fileset[0].status[p] < ST_OKOBS 
-               for p in self.fileset[0].status.iterkeys()):
+               for p in self.fileset[0].status.keys()):
             self.__fs_get__()
 
 
@@ -84,7 +84,7 @@ class GetMeteo:
     def __ftp_get__(self):
         todo = False
         for file in self.fileset:
-            if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()): todo = True
+            if any(file.status[p] < ST_OKOBS for p in file.status.keys()): todo = True
         if not todo: return
 
         savedir = os.getcwd()
@@ -95,7 +95,7 @@ class GetMeteo:
                 ftp.login(ArpaeSecrets.iftpuser,ArpaeSecrets.iftppasswd)
                 ftp.cwd('ModelloPollini')
                 for file in self.fileset:
-                    if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()):
+                    if any(file.status[p] < ST_OKOBS for p in file.status.keys()):
                         try:
                             tmpzipfile = tempfile.NamedTemporaryFile(mode='w+b',
                                                                      suffix='.zip',
@@ -108,7 +108,7 @@ class GetMeteo:
                             tmpzipfile.close()
                             for f in glob.glob('????.csv'):
                                 p = f.split('.')[0]
-                                if p in file.status.iterkeys():
+                                if p in file.status.keys():
                                     if file.status[p] < ST_OKOBS:
                                         shutil.copy(f, os.path.join(self.wdir,p+file.rename))
                                         os.unlink(f)
@@ -127,13 +127,13 @@ class GetMeteo:
     def __fs_get__(self):
         todo = False
         for file in self.fileset:
-            if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()): todo = True
+            if any(file.status[p] < ST_OKOBS for p in file.status.keys()): todo = True
         if not todo: return
 
         savedir = os.getcwd()
         os.chdir(self.rdir)
         for file in self.fileset:
-            if any(file.status[p] < ST_OKOBS for p in file.status.iterkeys()):
+            if any(file.status[p] < ST_OKOBS for p in file.status.keys()):
                     try:
                         srcfile = os.path.join(ArpaeSecrets.fspath, file.name)
                         if os.access(srcfile, os.R_OK):
@@ -142,7 +142,7 @@ class GetMeteo:
                             res = subprocess.call(['unzip', '-o', srcfile])
                             for f in glob.glob('????.csv'):
                                 p = f.split('.')[0]
-                                if p in file.status.iterkeys():
+                                if p in file.status.keys():
                                     if file.status[p] < ST_OKOBS:
                                         shutil.copy(f, os.path.join(self.wdir,p+file.rename))
                                         os.unlink(f)
